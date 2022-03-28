@@ -1,4 +1,4 @@
-# pygame_text_editor
+# Pygame Text Editor
 Text editor made using the pygame library
 
 Work in progress...
