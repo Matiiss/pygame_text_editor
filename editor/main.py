@@ -1,22 +1,25 @@
-import pygame
-from .text_box import TextBox
+"""Main module that contains the main function to run the application."""
+
+import pygame  # pylint: disable=import-error
+from .text_box import TextBox  # pylint: disable=relative-beyond-top-level
 
 
 pygame.init()
 
 
-def main():
+def main() -> None:
+    """Main function to run the application."""
 
     screen = pygame.display.set_mode((500, 400))
     pygame.display.set_caption('lol')
     clock = pygame.time.Clock()
 
-    tb = TextBox((0, 0), (500, 400), font=('Courier New', 18))
+    text_box = TextBox((0, 0), (500, 400), font=('Courier New', 18))
 
     running = True
     while running:
         clock.tick(60)
-        dt = clock.get_time()
+        delta_time = clock.get_time()
         screen.fill((0, 0, 0))
 
         events = pygame.event.get()
@@ -24,7 +27,7 @@ def main():
             if event.type == pygame.QUIT:
                 running = False
 
-        tb.update(screen, events, dt)
+        text_box.update(screen, events, delta_time)
 
         pygame.display.flip()
     pygame.quit()
