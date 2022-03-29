@@ -1,4 +1,4 @@
-"""This module contains the TextBox class that is used for editing text."""
+"""This package contains the TextBox class that is used for editing text."""
 
 import string
 import math
