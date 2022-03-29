@@ -2,8 +2,9 @@
 
 import string
 import math
+import itertools
 
-import pygame  # pylint: disable=import-error
+import pygame
 
 
 class TextBox:
@@ -86,6 +87,10 @@ class TextBox:
 
             elif event.type == pygame.KEYUP:
                 self.reset_continuous_key(event.key)
+
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == pygame.BUTTON_LEFT:
+                    self.insert_cursor_xy(event.pos)
 
     def set_cursor(self) -> None:
         """Changes the mouse cursor depending on whether it is in the widget or not."""
@@ -268,3 +273,26 @@ class TextBox:
 
     def insert_cursor_xy(self, pos: tuple[int, int]) -> None:
         """Inserts cursor in the closes column and row to the given xy position."""
+        x_pos, y_pos = pos
+        x_pos -= self.x_off
+        y_pos -= self.y_off
+        row = min(len(self.text_data) - 1, y_pos // self.cursor.height)
+        col = 0
+
+        text_data_row = self.text_data[row]
+        temp_width = text_data_row and self.char_size(text_data_row[0])[0] // 2
+        pairwise_iterator = itertools.pairwise(text_data_row)
+
+        if text_data_row and x_pos > temp_width:
+            for col, (char1, char2) in enumerate(pairwise_iterator, 1):
+                char1_width = self.char_size(char1)[0] / 2
+                char2_width = self.char_size(char2)[0] / 2
+                char_width_sum = round(sum((char1_width, char2_width)))
+
+                if x_pos in range(temp_width, temp_width + char_width_sum + 1):
+                    break
+                temp_width += char_width_sum
+            else:
+                col += 1
+
+        self.cursor_position = (col, row)

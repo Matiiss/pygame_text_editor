@@ -6,3 +6,4 @@
 venv
 run.py
 External Libraries
+config.pylintrc
