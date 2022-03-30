@@ -272,7 +272,7 @@ class TextBox:
         self.write(' ' * 4)
 
     def insert_cursor_xy(self, pos: tuple[int, int]) -> None:
-        """Inserts cursor in the closes column and row to the given xy position."""
+        """Inserts cursor in the closest column and row to the given xy position."""
         x_pos, y_pos = pos
         x_pos -= self.x_off
         y_pos -= self.y_off
