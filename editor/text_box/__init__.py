@@ -38,14 +38,8 @@ class TextBox:
             self.x_off, self.y_off, cursor_coefficient * font_size, char_height)
         self.text_data = [[]]
 
-        self.continuous_press_data: dict = {
-            'keys': set(),
-            'function': callable,
-            'delay': None,
-            'interval': None,
-            'time_passed': math.inf,
-            'start': 0
-        }
+        self.repeated_event = None
+        self.start_repeated_keys = pygame.event.custom_type()
 
         self.mouse_pos = pygame.mouse.get_pos()
         self.cursor_set = False
@@ -56,7 +50,6 @@ class TextBox:
         self.input(events)
         self.mouse_pos = pygame.mouse.get_pos()
         self.set_cursor()
-        self.repeat_key(delta_time)
 
         self.surf.fill(self.background)
         self.draw_text()
@@ -68,25 +61,41 @@ class TextBox:
 
     def input(self, events: list) -> None:
         """Handles all input events for the widget."""
+        key_map = {
+            pygame.K_BACKSPACE: self.backspace,
+            pygame.K_DELETE: self.delete,
+            pygame.K_RETURN: self.newline,
+            pygame.K_TAB: self.tab,
+            pygame.K_UP: self.move_up,
+            pygame.K_DOWN: self.move_down,
+            pygame.K_LEFT: self.move_left,
+            pygame.K_RIGHT: self.move_right
+        }
         for event in events:
             if event.type == pygame.TEXTINPUT:
                 self.write(event.text)
 
             elif event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN:
-                    self.newline()
-                elif event.key in (
-                        pygame.K_DOWN, pygame.K_UP, pygame.K_LEFT, pygame.K_RIGHT):
-                    self.move_by_key(event.key)
-                elif event.key == pygame.K_DELETE:
-                    self.delete()
-                elif event.key == pygame.K_BACKSPACE:
-                    self.backspace()
-                elif event.key == pygame.K_TAB:
-                    self.tab()
+                function = key_map.get(event.key, None)
+                if function is not None and self.repeated_event is None:
+                    custom_event = pygame.event.Event(
+                        self.start_repeated_keys, key=event.key)
+                    pygame.time.set_timer(custom_event, 500, loops=1)
+                    self.repeated_event = custom_event
+                    function()
+                elif function is not None:
+                    function()
+
+            elif event.type == self.start_repeated_keys:
+                custom_event = pygame.event.Event(pygame.KEYDOWN, key=event.key)
+                pygame.event.post(custom_event)
+                pygame.time.set_timer(custom_event, 50)
+                self.repeated_event = custom_event
 
             elif event.type == pygame.KEYUP:
-                self.reset_continuous_key(event.key)
+                if self.repeated_event is not None:
+                    pygame.time.set_timer(self.repeated_event, 0)
+                    self.repeated_event = None
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == pygame.BUTTON_LEFT:
@@ -102,46 +111,6 @@ class TextBox:
             if self.cursor_set:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)
                 self.cursor_set = False
-
-    @staticmethod
-    def continuous_call(*keys, delay: int = 500, interval: int = 50) -> callable:
-        """Decorator to manage repeated calls for held keys."""
-        def decorator(func):
-            def wrapper(self, *args, **kwargs):
-                data = self.continuous_press_data
-                data['keys'] = set(keys)
-                data['function'] = lambda: func(self, *args, **kwargs)
-                data['delay'] = delay
-                data['interval'] = interval
-                data['start'] = pygame.time.get_ticks()
-                return func(self, *args, **kwargs)
-            return wrapper
-        return decorator
-
-    def reset_continuous_key(self, key: int) -> None:
-        """Resets data for continuous key press."""
-        if key in self.continuous_press_data['keys']:
-            self.continuous_press_data = {
-                'keys': set(),
-                'function': callable,
-                'delay': None,
-                'interval': None,
-                'time_passed': math.inf,
-                'start': 0
-            }
-
-    def repeat_key(self, delta_time: int) -> None:
-        """Repeats held key function in an interval after a delay."""
-        data = self.continuous_press_data
-        if not data['keys']:
-            return
-        now = pygame.time.get_ticks()
-        if now - data['start'] < data['delay']:
-            return
-        if data['time_passed'] >= data['interval']:
-            data['function']()
-            data['time_passed'] = 0
-        data['time_passed'] += delta_time
 
     def write(self, character: str) -> None:
         """Adds a character to the text data list, moves cursor."""
@@ -168,16 +137,6 @@ class TextBox:
             surf = self.font.render(text, True, self.foreground)
             self.surf.blit(surf, (self.x_off, y_pos))
             y_pos += surf.get_height()
-
-    @continuous_call(pygame.K_RETURN)
-    def newline(self) -> None:
-        """Creates a new line."""
-        col, row = self.cursor_position
-        to_new_line = self.text_data[row][col:]
-        self.text_data[row] = self.text_data[row][:col]
-        self.text_data.insert(row + 1, to_new_line)
-        new_y = self.cursor.y + self.cursor.height
-        self.cursor.topleft = (self.x_off, new_y)
 
     @property
     def cursor_position(self) -> tuple[int, int]:
@@ -215,22 +174,32 @@ class TextBox:
         new_y = self.y_off + row * self.cursor.height
         self.cursor.topleft = (new_x, new_y)
 
-    @continuous_call(pygame.K_UP, pygame.K_DOWN, pygame.K_LEFT, pygame.K_RIGHT)
-    def move_by_key(self, key: int) -> None:
-        """Moves the cursor using arrow keys."""
-        pos = current_col, current_row = self.cursor_position
-        if key == pygame.K_UP:
-            next_col = min(self.get_line_length(current_row - 1), current_col)
-            pos = (next_col, current_row - 1)
-        elif key == pygame.K_DOWN:
-            next_col = min(self.get_line_length(current_row + 1), current_col)
-            pos = (next_col, current_row + 1)
-        elif key == pygame.K_LEFT:
-            pos = (current_col - 1, current_row)
-        elif key == pygame.K_RIGHT:
-            pos = (current_col + 1, current_row)
+    def newline(self) -> None:
+        """Creates a new line."""
+        col, row = self.cursor_position
+        to_new_line = self.text_data[row][col:]
+        self.text_data[row] = self.text_data[row][:col]
+        self.text_data.insert(row + 1, to_new_line)
+        new_y = self.cursor.y + self.cursor.height
+        self.cursor.topleft = (self.x_off, new_y)
 
-        self.cursor_position = pos
+    def move_up(self):
+        current_col, current_row = self.cursor_position
+        next_col = min(self.get_line_length(current_row - 1), current_col)
+        self.cursor_position = (next_col, current_row - 1)
+
+    def move_down(self):
+        current_col, current_row = self.cursor_position
+        next_col = min(self.get_line_length(current_row + 1), current_col)
+        self.cursor_position = (next_col, current_row + 1)
+
+    def move_left(self):
+        current_col, current_row = self.cursor_position
+        self.cursor_position = (current_col - 1, current_row)
+
+    def move_right(self):
+        current_col, current_row = self.cursor_position
+        self.cursor_position = (current_col + 1, current_row)
 
     def get_line_length(self, row: int) -> int:
         """Returns the length (in characters) of the given row."""
@@ -253,12 +222,10 @@ class TextBox:
             except IndexError:
                 pass
 
-    @continuous_call(pygame.K_DELETE)
     def delete(self) -> None:
         """Deletes a character at the current cursor position."""
         self.delete_char(self.cursor_position)
 
-    @continuous_call(pygame.K_BACKSPACE)
     def backspace(self) -> None:
         """Deletes a character in the column before current cursor position."""
         col, row = self.cursor_position
@@ -266,7 +233,6 @@ class TextBox:
         if (col, row) != (0, 0):
             self.delete_char(self.cursor_position)
 
-    @continuous_call(pygame.K_TAB)
     def tab(self) -> None:
         """Adds a tab in the current cursor position."""
         self.write(' ' * 4)
