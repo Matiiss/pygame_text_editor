@@ -1,7 +1,6 @@
 """This package contains the TextBox class that is used for editing text."""
 
 import string
-import math
 import itertools
 
 import pygame
@@ -38,8 +37,7 @@ class TextBox:
             self.x_off, self.y_off, cursor_coefficient * font_size, char_height)
         self.text_data = [[]]
 
-        self.repeated_event = None
-        self.start_repeated_keys = pygame.event.custom_type()
+        pygame.key.set_repeat(500, 50)
 
         self.mouse_pos = pygame.mouse.get_pos()
         self.cursor_set = False
@@ -76,26 +74,8 @@ class TextBox:
                 self.write(event.text)
 
             elif event.type == pygame.KEYDOWN:
-                function = key_map.get(event.key, None)
-                if function is not None and self.repeated_event is None:
-                    custom_event = pygame.event.Event(
-                        self.start_repeated_keys, key=event.key)
-                    pygame.time.set_timer(custom_event, 500, loops=1)
-                    self.repeated_event = custom_event
-                    function()
-                elif function is not None:
-                    function()
-
-            elif event.type == self.start_repeated_keys:
-                custom_event = pygame.event.Event(pygame.KEYDOWN, key=event.key)
-                pygame.event.post(custom_event)
-                pygame.time.set_timer(custom_event, 50)
-                self.repeated_event = custom_event
-
-            elif event.type == pygame.KEYUP:
-                if self.repeated_event is not None:
-                    pygame.time.set_timer(self.repeated_event, 0)
-                    self.repeated_event = None
+                func = key_map.get(event.key, lambda: None)
+                func()
 
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 if event.button == pygame.BUTTON_LEFT:
